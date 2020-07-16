@@ -1,5 +1,5 @@
 
-# AI_Project_CrystalLogiic
+# AI_Project_CrystalLogic
 
 ## DataSets:
 
