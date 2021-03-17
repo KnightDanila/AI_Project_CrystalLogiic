@@ -3,11 +3,11 @@
  * To change this template file, choose Tools | Templates
  * and open the template in the editor.
  */
-var AI = function () {
+
+var AI_IDEAS = function () {
 
     var FuzzySet = function () {
     };
-
     /*
      * struct Ling {
      *      name
@@ -19,14 +19,276 @@ var AI = function () {
      *      
      * }
      */
-    addLing("name",/*array of term names*/[], /*array*/[]);
+    // addLing("name", /*array of term names*/[], /*array*/[]);
     var Ling3Terms = function (name, low, mid, high) {
-        this._name = name;
-        this._low;
-        this._mid;
-        this._high;
+        AI._name = name;
+        AI._low;
+        AI._mid;
+        AI._high;
     };
 };
+
+AI = {
+
+    LingMatVars: new Array(),
+    LingMatNames: new Array(),
+    N: -1,
+    TrainFin: false,
+    TrainData: null,
+    FuzzySet: function () {
+        AI.LingMatVars = new Array();
+        AI.LingMatNames = new Array();
+    },
+    /*
+     * struct Ling {
+     *      name
+     *      level
+     *      
+     *      // TermN=3
+     *      terms[level][TermN][]       
+     *      
+     *      
+     * }
+     */
+    //addLing("name", /*array of term names*/[], /*array*/[]);
+    train: function () {
+
+        var data;
+        $.getJSON('iris.json', function (json) {
+            var array = [];
+            for (var key in json) {
+
+                if (json.hasOwnProperty(key)) {
+                    var item = json[key];
+                    array.push([
+                        item.sepalLength,
+                        item.sepalWidth,
+                        item.petalLength,
+                        item.petalWidth,
+                        item.species
+                    ]);
+                }
+            }
+            AI.TrainData = array.slice();
+            AI.TrainFin = true;
+            console.log(AI.TrainData[0].sepalLength);
+
+            var names = ["sepalLength", "sepalWidth", "petalLength", "petalWidth"];
+            for (var i = 0; i < names.length; i++) {
+                data = [];
+
+                for (var j = 0; j < AI.TrainData.length; j++) {
+                    data[j] = AI.TrainData[j][i];
+                }
+                console.log(data);
+                AI.addLing(names[i], ["low", "mid", "high"], data);
+            }
+
+            for (var i = 0; i < 150; i++){
+                AI.fuzz(AI.TrainData[i], 4);
+            }
+
+        });
+
+
+    },
+    addLing: function (name, terms, data) {
+
+        AI.N++;
+        AI.LingMatVars[AI.N] = new Array();
+        AI.LingMatNames[AI.N] = new Array();
+
+        console.log("getMin(data): " + AI.getMin(data));
+        console.log("getMax(data): " + AI.getMax(data));
+        console.log("getIQR(data): " + AI.IQR(data));
+
+        var min = AI.getMin(data), max = AI.getMax(data), iqr = AI.IQR(data);
+
+        AI.LingMatNames[AI.N][0] = name;
+        for (var i = 0; i < terms.length; i++) {
+            AI.LingMatVars[AI.N][i] = new Array();
+            var l, r;
+            if (i === 0 || (i + 1 === terms.length)) {
+// Left & Right
+                if (i === 0) {
+                    l = min;
+                    r = min + 2 * 2 / (terms.length + 1) * (iqr - min);
+                }
+                if (i + 1 === terms.length) {
+                    l = max - 2 * 2 / (terms.length + 1) * (max - iqr);
+                    r = max;
+                }
+            } else {
+// Center
+                l = min + ((i + 1 - 1) * 2 / (terms.length + 1) * (iqr - min));
+                r = max - ((terms.length - (i + 1)) * 2 / (terms.length + 1) * (max - iqr));
+            }
+//            AI.LingMatVars[AI.LingMatVars.length][i] = 1;
+            AI.LingMatVars[AI.N][i][0] = l;
+            AI.LingMatVars[AI.N][i][1] = r;
+            AI.LingMatNames[AI.N][i + 1] = terms[i];
+        }
+
+        console.log(AI.LingMatVars);
+        console.log(AI.LingMatNames);
+    },
+    fuzz: function (features, size) {
+
+        console.log("fuzzData");
+        console.log(features);
+
+        var fuzzData = [];
+        for (var i = 0; i < size * 3; i += 3) {
+//        fuzzAnswers[0] = leftFunc(answers.height, terms.height.middle[0], terms.height.short[1]);
+//        fuzzAnswers[1] = middleFunc(answers.height, terms.height.middle[0], terms.height.tall[0], terms.height.middle[1]);
+//        fuzzAnswers[2] = rightFunc(answers.height, terms.height.tall[0], terms.height.middle[1]);
+
+            fuzzData[i] = leftFunc(features[i / 3], AI.LingMatVars[i / 3][1][0], AI.LingMatVars[i / 3][0][1]);
+            fuzzData[i + 1] = middleFunc(features[i / 3], AI.LingMatVars[i / 3][1][0], AI.LingMatVars[i / 3][2][0], AI.LingMatVars[i / 3][1][1], );
+            fuzzData[i + 2] = rightFunc(features[i / 3], AI.LingMatVars[i / 3][2][0], AI.LingMatVars[i / 3][1][1]);
+
+        }
+
+        var Class = [];
+        console.log(fuzzData);
+        Class[0] = 0;
+        Class[1] = 0;
+        Class[2] = 0;
+        for (var i = 0; i < size * 3; i += 3) {
+            Class[0] += fuzzData[i];
+            Class[1] += fuzzData[i + 1];
+            Class[2] += fuzzData[i + 2];
+        }
+        Class[0] = Class[0] / size;
+        Class[1] = Class[1] / size;
+        Class[2] = Class[2] / size;
+        console.log(Class);
+        console.log("_____DEFUZZ________");
+        console.log(AI.defuzz(Class));
+
+
+        layer.add(
+                new Konva.Rect({
+                    x: (AI.defuzz(Class)[0] / 50 - 0.5) * stage.width(),
+                    y: (AI.defuzz(Class)[1]*1.9-.3) * stage.height(),
+                    width: 5,
+                    height: 5,
+                    fill: features[4] == "setosa" ? "#990000" : features[4] == "versicolor" ? "#009900" : features[4] == "virginica" ? "#000099" : "#555555",
+                    rotation: 360,
+                    draggable: true,
+                    name: 'object',
+                })
+                );
+        layer.draw();
+    },
+
+    /*
+     *     characterLooks: {
+     shallow: [0, 50],
+     impressive: [25, 75],
+     incredible: [50, 100]
+     }
+     */
+    defuzz: function (Class) {
+//        Class[0]=1;
+//        Class[1]=0;
+//        Class[2]=0.5;
+
+
+        var defuzzCharacter = (
+                Class[0] * 25 +
+                Class[1] * ((50 + 50) / 2) +
+                Class[2] * 75
+                ) /
+                (Class[0] + Class[1] + Class[2]);
+        //(terms.characterLooks.impressive[0] + ((terms.characterLooks.shallow[1] + terms.characterLooks.incredible[0]) / 2) + terms.characterLooks.impressive[1]);
+        var defuzzCharacterM = (
+                Class[0] / 2 +
+                Class[1] / 3 +
+                Class[2] / 2
+                ) / (Class[0] + Class[1] + Class[2]);
+        return [defuzzCharacter, defuzzCharacterM];
+    },
+    rule1: function () {
+
+        //var G = require('generatorics');
+        var comb = [];
+        for (let prod of G.cartesian([0, 1, 2], [1, 2, 0], [1, 2, 0], [1, 2, 0])) {
+            console.log(prod);
+            let t = prod.slice();
+            ;
+            comb.push(t);
+        }
+        console.log(comb);
+    },
+    IQR: function (someArray) {
+
+        if (someArray.length < 4)
+            return someArray;
+        let values, q1, q3, iqr, maxValue, minValue;
+        values = someArray.slice().sort((a, b) => a - b); //copy array fast and sort
+
+        if ((values.length / 4) % 1 === 0) {//find quartiles
+            q1 = 1 / 2 * (values[(values.length / 4)] + values[(values.length / 4) + 1]);
+            q3 = 1 / 2 * (values[(values.length * (3 / 4))] + values[(values.length * (3 / 4)) + 1]);
+        } else {
+            q1 = values[Math.floor(values.length / 4 + 1)];
+            q3 = values[Math.ceil(values.length * (3 / 4) + 1)];
+        }
+
+        iqr = q3 - q1;
+        maxValue = q3 + iqr * 1.5;
+        minValue = q1 - iqr * 1.5;
+        return (minValue + maxValue) / 2;
+        return values.filter((x) => (x >= minValue) && (x <= maxValue));
+    },
+    Ling3Terms: function (name, low, mid, high) {
+        AI._name = name;
+        AI._low;
+        AI._mid;
+        AI._high;
+    },
+
+    getMin: function (data) {
+        var min = data[0];
+        for (var i = 0; i < data.length; i++)
+        {
+            if (min > data[i])
+            {
+                min = data[i];
+            }
+        }
+        return min;
+
+    },
+    getMax: function (data) {
+        var max = data[0];
+        for (var i = 0; i < data.length; i++)
+        {
+            if (max < data[i])
+            {
+                max = data[i];
+            }
+        }
+        return max;
+    }
+};
+
+AI.train();
+APP();
+function APP() {
+
+    if (!AI.TrainFin) {
+        setTimeout(function () {
+            APP();
+        }, 100);
+    } else {
+        AI.FuzzySet();
+        AI.defuzz();
+        console.log(AI.TrainData);
+        AI.addLing("test", [1, 2, 3], [1, 2, 3]);
+    }
+}
 
 var START = 0;
 var FINISH = 0;
